@@ -1,0 +1,260 @@
+---
+title: "NOBEL WINNERS"
+author: "Sara ZOUIRCHI"
+date: "21/06/2020"
+output: html_document
+---
+
+
+## Le prix Nobel est une récompense de portée internationale. Remis pour la première fois en 1901, les prix sont décernés chaque année à des personnes « ayant apporté le plus grand bénéfice à l’humanité », par leurs inventions, découvertes et améliorations dans différents domaines de la connaissance, par l’œuvre littéraire la plus impressionnante, ou par leur travail en faveur de la paix, suivant ainsi les derniers vœux d’Alfred Nobel, inventeur de la dynamite.
+
+```{r setup, include=FALSE}
+extrafont::loadfonts(device = "win")
+library(tidyverse)
+library(lubridate)
+theme_set(theme_light())
+library(countrycode)
+library(ggplot2)
+library(ggalt)
+library(ggthemes)
+library(lubridate)
+library(viridis)
+library(ggpubr)
+library(janitor)
+library(scales)
+library(readr)
+library(janitor)
+library(scales)
+library(readr)
+library(lubridate)
+library(ggbeeswarm)
+library(maps)
+
+```
+
+```{r}
+nobel <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winners.csv")
+
+nobel_winners <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winners.csv") %>%
+  mutate_all(., tolower) %>%
+  mutate(prize_year = as.integer(prize_year)) %>%
+  mutate(birth_country = ifelse(grepl('\\(', birth_country), str_extract(birth_country, "(?<=\\().*?(?=\\))"), birth_country),
+         death_country = ifelse(grepl('\\(', death_country), str_extract(death_country, "(?<=\\().*?(?=\\))"), death_country)) %>%
+  mutate(birth_country = case_when(birth_country == "scotland" ~ "united kingdom",
+                                   birth_country == "northern ireland" ~ "united kingdom",
+                                   grepl("czech", birth_country) ~ "czechia",
+                                   birth_country == "east_germany" ~ "germany",
+                                   TRUE ~ birth_country),
+         death_country = case_when(death_country == "scotland" ~ "united kingdom",
+                                   death_country == "northern ireland" ~ "united kingdom",
+                                   grepl("czech", death_country) ~ "czechia",
+                                   death_country == "east_germany" ~ "germany",
+                                   TRUE ~ death_country)) %>%
+  select(prize_year, category, birth_date, birth_country, gender, organization_name, organization_country, death_country)
+
+```
+
+```{r}
+nobel_winners <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winners.csv") %>%
+  distinct(full_name, prize_year, category, .keep_all = TRUE) %>%
+  mutate(decade = 10 * (prize_year %/% 10),
+         age = prize_year - year(birth_date))
+
+nobel_winner_all_pubs <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-05-14/nobel_winner_all_pubs.csv") %>%
+  mutate(prize_decade = 10 * (prize_year %/% 10))
+
+```
+## Les gagnants par an en dernière décennie (par catégorie)
+##  Commentaire: Il y a presque un gagnant chaque année en littérature, en médecine le nombre de gagnat par an a augmenté, en physique aussi pour l’économie, elle était introduite à partir des années 60 par un peu près de 1 gagnant au bout de deux ans et puis 2 gagnant plutard.
+```{r}
+nobel_winners %>%
+  group_by(category, decade) %>%
+  summarize(winners = n(),
+            winners_per_year = winners / n_distinct(prize_year)) %>%
+  ggplot(aes(decade, winners_per_year, color = category)) +
+  geom_line() +
+  expand_limits(y = 0)
+
+```
+
+
+
+
+## Nom complet des gagnats par catégorie (nombre de prix)
+## Commentaire: Trois prix en catégorie “paix” par la comité international de la Croix rouge. Deux prix en chimie par Frederick Sanger. Deux prix en physique par John Bardeen et ainsi de suite.
+
+```{r}
+nobel_winners %>%
+  distinct(full_name, prize_year, category) %>%
+  group_by(full_name) %>%
+  mutate(prizes = n(),
+         distinct_prizes = n_distinct(category)) %>%
+  arrange(desc(prizes), full_name)
+```
+
+
+
+## Répartition des gagants du prix Nobel par sexe au fil du temps.
+
+## Commentaire: C’est graphique représente la répartition des prix Nobel par sexe. En Chemistry (chimie),il y a une gagnante un peu près chaque décennie, en économie il y a une seule gagnate en 2010. En littératrure et la paix il y a presque chaque année au moins une gagnante (pour la paix en 2010 on constate une sorte d’égalité entre les deux sexe).
+```{r}
+nobel_winners %>%
+  count(decade,
+        category,
+        gender = coalesce(gender, laureate_type)) %>%
+  group_by(decade, category) %>%
+  mutate(percent = n / sum(n)) %>%
+  ggplot(aes(decade, n, fill = gender)) +
+  geom_col() +
+  facet_wrap(~ category) +
+  labs(x = "Decade",
+       y = "Gagnants prix de nobel",
+       fill = "Sexe",
+       title = "Répartition des prix Nobel par sexe au fil du temps")
+
+```
+
+
+## D’après les graphiques obtenus, on a remarqué que le nombre des femmes gagnantes et inférieur aux hommes gagnants. D’où la représentation suivante, pour voir le nombre des femmes gagnantes des prix Nobel par catégorie
+## Commentaire: 16 femmes ont obtenu le prix Nobel de la paix, 14 en medcine 12 en chimie,deux en économie et deux en physique.
+
+
+```{r}
+nobel %>% 
+  filter(gender == "Female") %>%
+  select(full_name, prize_year, category) %>% 
+  group_by(category) %>% 
+  count() %>% 
+  arrange(desc(n))
+
+```
+## creuser un peu plus, j’ai affiché les noms complets des gagnantes, la date d’obtention du prix et la catégorie.
+```{r}
+
+nobel %>% 
+  filter(gender == "Female") %>% 
+  select(full_name, prize_year, category) %>% head()
+
+```
+
+
+## Il y avait 26 organisations plutôt que des individus qui ont remporté le prix Nobel de la paix.
+
+```{r}
+nobel %>% filter(is.na(gender)) %>% select(full_name, category)
+
+```
+
+
+## Répartition des gagnants du prix Nobel par âge
+## Commentaire: Cette représentation permet de voir l’âge des gagnant.
+
+```{r}
+nobel_winners %>%
+  filter(!is.na(age)) %>%
+  group_by(decade, category) %>%
+  summarize(average_age = mean(age),
+            median_age = median(age)) %>%
+  ggplot(aes(decade, average_age, color = category)) +
+  geom_line()
+```
+##Représentation des gagnants par pays de naissance.
+
+## Commentaire: Pour chaque catégorie,on essaye d'étudier le pays de naissance des gagants,pour la physique et la médicine on remarque que c'est plus élevé au Etats-UNI, pour la littérature est un peu international, la paix également est international.
+
+
+```{r}
+
+nobel_winners %>%
+  filter(!is.na(birth_country)) %>%
+  count(birth_country = fct_lump(birth_country, 9),
+        category,
+        sort = TRUE) %>%
+  mutate(birth_country = fct_reorder(birth_country, n)) %>%
+  ggplot(aes(birth_country, n, fill = category)) +
+  geom_col() +
+  facet_wrap(~ category) +
+  coord_flip()
+```
+
+
+
+
+```{r}
+map.world <- map_data('world') 
+map_countries <- distinct(map.world, region)
+```
+
+
+## Filtrer le jeu de données d'origine pour n'inclure que les pays de naissance qui ont plus de 5 gagnants et qui ne manquent pas. Cela réduit notre ensemble de données de 969 à 792 gagnants et 24 principaux pays.
+
+```{r}
+nobel_countries <- nobel %>% group_by(birth_country) %>% count() %>% filter(n >5, !is.na(birth_country)) %>% arrange(desc(n))
+anti_join(nobel_countries, map.world, by = c('birth_country' = 'region')) %>% select(birth_country) %>% group_by(birth_country) %>% count(sort = T)
+```
+
+## Et corrigeons ces décalages en les recodant sous les noms qui se trouvent dans notre jeu de données map.world.
+```{r}
+
+nobel <- nobel %>% mutate(birth_country = recode(birth_country,
+                                                 "United States of America" = "USA",
+                                                 "United Kingdom" = "UK",
+                                                 "Scotland" = "UK",
+                                                 "Northern Ireland" = "Ireland",
+                                                 "Germany (Poland)" = "Poland",
+                                                 "Prussia (Germany)" = "Germany",
+                                                 "Prussia (Poland)" = "Poland"))
+```
+
+```{r}
+
+country_list <- nobel_countries$birth_country
+nobel_small <- nobel %>% filter(birth_country %in% country_list)
+```
+
+## Combinant le jeu de données nobel et le jeu de données de carte.
+
+
+```{r}
+nobel_small <- left_join(nobel_small, nobel_countries, by ="birth_country") %>% rename("num_winners" = "n") #this add the count of winners
+nobel_map <- left_join( map.world, nobel_small, by = c("region"= "birth_country"))
+```
+
+
+```{r}
+ggplot(nobel_map, aes( x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = num_winners))+
+  scale_fill_gradientn(colours = c('#461863','#404E88','#2A8A8C','#7FD157','#F9E53F')
+                       ,values = scales::rescale(c(5, 50, 100, 200, 300))
+                       ,labels = comma
+                       ,breaks = c(5, 50, 100, 200, 300)
+  ) +
+  labs(fill = '# of Nobel Winners'
+              ,title = 'U.S and europe win most nobel prizes'
+       ,x = NULL
+       ,y = NULL) +
+  theme(text = element_text(family = 'Gill Sans', color = '#EEEEEE')
+        ,plot.title = element_text(size = 20)
+        ,plot.subtitle = element_text(size = 14)
+        ,axis.ticks = element_blank()
+        ,axis.text = element_blank()
+        ,panel.grid = element_blank()
+        ,panel.background = element_rect(fill = '#333333')
+        ,plot.background = element_rect(fill = '#333333')
+        ,legend.position = c(.18,.36)
+        ,legend.background = element_blank()
+        ,legend.key = element_blank()
+  ) +
+  annotate(geom = 'text'
+           ,label = 'Source: Kaggle |Plot by @sarazouirchi'
+           ,x = 18, y = -55
+           ,size = 3
+           ,family = 'Gill Sans'
+           ,color = '#CCCCCC'
+           ,hjust = 'left')
+```
+## Commentaire: Les États-Unis et l’Europe remportent le plus de prix Nobel
+
+
+
+
